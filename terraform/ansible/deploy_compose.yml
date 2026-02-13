@@ -1,0 +1,33 @@
+---
+- name: Deploy microservices stack with docker compose
+  hosts: poc_ec2
+  become: yes
+  vars:
+    app_dir: /opt/poc
+
+  tasks:
+    - name: Create app directory
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Copy docker-compose file
+      copy:
+        src: ../Poc_infra/docker-compose.db.yml
+        dest: "{{ app_dir }}/docker-compose.yml"
+        mode: '0644'
+
+    - name: Log in to Docker Hub (optional, if you use private images)
+      community.docker.docker_login:
+        username: "{{ lookup('env', 'DOCKERHUB_USERNAME') }}"
+        password: "{{ lookup('env', 'DOCKERHUB_TOKEN') }}"
+      when: lookup('env', 'DOCKERHUB_USERNAME') != ""
+
+    - name: Pull and start containers with Docker Compose
+      ansible.builtin.shell: |
+        docker compose -f {{ app_dir }}/docker-compose.yml pull
+        docker compose -f {{ app_dir }}/docker-compose.yml up -d
+      args:
+        chdir: "{{ app_dir }}"
+        executable: /bin/bash

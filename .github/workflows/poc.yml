@@ -1,9 +1,14 @@
-name: CD to AWS EC2
+name: CD to AWS EC2 (Terraform + Ansible)
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch: {}
+
+# Prevent two runs from applying at the same time
+concurrency:
+  group: cd-aws-ec2-main
+  cancel-in-progress: false
 
 jobs:
   terraform-apply:
@@ -25,11 +30,15 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-west-1
+          aws-region: us-east-1
 
-      - name: Terraform init
+      - name: Terraform init (remote state)
         working-directory: terraform
-        run: terraform init -input=false
+        run: terraform init -reconfigure -input=false
+
+      - name: Terraform validate
+        working-directory: terraform
+        run: terraform validate
 
       - name: Terraform apply
         working-directory: terraform
@@ -39,7 +48,7 @@ jobs:
         id: tf-output
         working-directory: terraform
         run: |
-          ip=$(terraform output -raw ec2_public_ip)
+          ip=$(terraform output -raw public_ip)
           echo "ec2_ip=$ip" >> "$GITHUB_OUTPUT"
 
   ansible-deploy:
@@ -62,14 +71,14 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/devops-poc-ec2
           chmod 600 ~/.ssh/devops-poc-ec2
 
-      - name: Add EC2 to known_hosts (avoid interactive prompt)
+      - name: Add EC2 to known_hosts
         run: |
           ssh-keyscan -H "${{ needs.terraform-apply.outputs.ec2_ip }}" >> ~/.ssh/known_hosts
 
-      - name: Create Ansible inventory from Terraform output
+      - name: Create Ansible inventory (from Terraform output)
         run: |
-          mkdir -p ansible/inventory
-          cat > ansible/inventory/ec2.ini <<EOF
+          mkdir -p terraform/ansible/inventory
+          cat > terraform/ansible/inventory/ec2.ini <<EOF
           [poc_ec2]
           ${{ needs.terraform-apply.outputs.ec2_ip }} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/devops-poc-ec2
           EOF

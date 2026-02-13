@@ -75,9 +75,9 @@ jobs:
           EOF
 
       - name: Run install_docker playbook
-        working-directory: ansible
+        working-directory: terraform/ansible
         run: ansible-playbook -i inventory/ec2.ini install_docker.yml
 
       - name: Run deploy_compose playbook
-        working-directory: ansible
+        working-directory: terraform/ansible
         run: ansible-playbook -i inventory/ec2.ini deploy_compose.yml
